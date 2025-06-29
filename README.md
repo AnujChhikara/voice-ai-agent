@@ -203,7 +203,7 @@ voice-ai-agent/
 ## Known Limitations
 
 - **ChromaDB is in-memory by default** — data is lost when the container stops unless a volume is mounted (see setup above)
-- **Single shared room** — all users connect to `voice-ai-room`; no per-user isolation or multi-tenancy
+- **Shared knowledge base** — each session gets a unique room ID (`room-<uuid>`) so voice sessions are isolated, but all users share the same ChromaDB collection and system prompt; there is no per-user document or data separation
 - **RAG latency** — each user turn incurs ~300–500ms for the embedding API call + ChromaDB query before the LLM starts
 - **Prompt changes** take effect on the next call; the agent reads `prompt.txt` once at session start
 - **No token refresh** — the access token TTL is 2h; after expiry the user must sign in again
