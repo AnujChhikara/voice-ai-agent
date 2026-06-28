@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables — NEVER commit these
+.env
+**/.env
+*.env
+
+# Build output
+frontend/dist/
+frontend/dist-ssr/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# ChromaDB data
+backend/chroma_data/
+chroma_data/
+
+# Agent prompt (runtime file, not source)
+backend/prompt.txt
+
+# Python (leftover from earlier iteration)
+**/__pycache__/
+**/*.pyc
+.venv/
+backend/.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.sw?
