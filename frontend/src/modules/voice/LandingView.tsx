@@ -12,7 +12,7 @@ export function LandingView({ error, onConnect, onOpenSettings, onOpenHistory, o
   return (
     <div className="h-screen flex flex-col bg-[#070707] text-stone-100 overflow-hidden relative">
       <div className="flex items-center justify-between px-8 py-5 shrink-0 animate-fade-up">
-        <span className="font-syne font-bold text-sm tracking-[0.12em] text-[#e8b84b] uppercase select-none">
+        <span className="font-bold text-sm tracking-[0.12em] text-[#e8b84b] uppercase select-none">
           Auris
         </span>
         <div className="flex items-center gap-4">
@@ -46,7 +46,7 @@ export function LandingView({ error, onConnect, onOpenSettings, onOpenHistory, o
               <span className="w-5 h-px bg-[#e8b84b]" />
               <span className="text-[10px] tracking-[0.25em] uppercase text-[#e8b84b] font-medium">Voice Intelligence</span>
             </div>
-            <h1 className="font-syne leading-[0.92] select-none" style={{ fontSize: 'clamp(36px, 5.5vw, 72px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#f0ede8' }}>
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.1] tracking-tight select-none max-w-4xl" style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#f0ede8' }}>
               TALK TO YOUR<br />
               <span style={{ color: '#888', WebkitTextStroke: '1px #aaa' }}>BUSINESS</span><br />
               INTELLIGENCE.
