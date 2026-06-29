@@ -3,7 +3,7 @@ const RESERVED_TOKENS_SYSTEM_PROMPT     = 500
 const RESERVED_TOKENS_CONVERSATION      = 1_000
 const AVERAGE_CHARS_PER_TOKEN           = 4
 const AVERAGE_TOKENS_PER_CHUNK          = 200
-const HARD_MAX_CHUNKS_PER_QUERY         = 10
+const HARD_MAX_CHUNKS_PER_QUERY         = 5
 
 export function computeMaxChunks(query: string): number {
   const queryTokenEstimate     = Math.ceil(query.length / AVERAGE_CHARS_PER_TOKEN)
