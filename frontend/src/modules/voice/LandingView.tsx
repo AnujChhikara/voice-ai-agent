@@ -46,7 +46,7 @@ export function LandingView({ error, onConnect, onOpenSettings, onOpenHistory, o
               <span className="w-5 h-px bg-[#e8b84b]" />
               <span className="text-[10px] tracking-[0.25em] uppercase text-[#e8b84b] font-medium">Voice Intelligence</span>
             </div>
-            <h1 className="font-syne font-800 leading-[0.92] select-none" style={{ fontSize: 'clamp(56px, 9vw, 108px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#f0ede8' }}>
+            <h1 className="font-syne leading-[0.92] select-none" style={{ fontSize: 'clamp(36px, 5.5vw, 72px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#f0ede8' }}>
               TALK TO YOUR<br />
               <span style={{ color: '#888', WebkitTextStroke: '1px #aaa' }}>BUSINESS</span><br />
               INTELLIGENCE.
