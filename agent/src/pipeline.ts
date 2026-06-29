@@ -1,4 +1,4 @@
-import './instrumentation.js'
+import './lib/tracing.js'
 import 'dotenv/config'
 import { logger } from './lib/logger.js'
 import { defineAgent, WorkerOptions, cli, voice, llm } from '@livekit/agents'
@@ -7,7 +7,7 @@ import * as deepgram from '@livekit/agents-plugin-deepgram'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
-import { retrieveContext } from './rag.js'
+import { retrieveContext, RagResult } from './rag.js'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 const PROMPT_FILE = join(__dir, '../../backend/prompt.txt')
@@ -15,15 +15,14 @@ const PROMPT_FILE = join(__dir, '../../backend/prompt.txt')
 const VOICE_RULES = `
 
 VOICE OUTPUT RULES — FOLLOW STRICTLY:
-- This is a voice interface. Responses are spoken aloud. Keep every reply to 1-2 sentences maximum.
+- This is a voice interface. Responses are spoken aloud. Keep every reply to 2-3 sentences maximum.
 - NEVER use markdown, bullet points, asterisks, dashes, bold, or any formatting. Plain spoken words only.
-- NEVER read out MRN numbers, ICD codes, or insurance details unless directly asked.
-- When asked about a patient, give only the most important 1-2 facts and then ask "Would you like more details?"
-- Do not list every medication, every lab result, every diagnosis unprompted. Answer the specific question asked.`
+- Answer only what was asked. Do not volunteer extra information unprompted.
+- If a topic has more depth, give the key point first and ask "Would you like more details?"`
 
-const DEFAULT_INSTRUCTIONS = `You are a helpful voice AI assistant.
+const DEFAULT_INSTRUCTIONS = `You are a helpful voice AI assistant that answers questions about uploaded documents.
 When relevant context from uploaded documents is provided, use it as your primary source to answer accurately.
-If the question cannot be fully answered from the provided documents — for example, the user asks for general world statistics, medical prevalence data, or any information not present in the uploaded files — answer using your general knowledge. Do not say you cannot answer; always give the best answer you can combining both sources.
+If the question goes beyond what is in the documents, answer from your general knowledge.
 ${VOICE_RULES}`
 
 function getInstructions(): string {
@@ -33,10 +32,9 @@ function getInstructions(): string {
       return custom + '\n' + VOICE_RULES
     }
   } catch { /* ignore */ }
-  return DEFAULT_INSTRUCTIONS
+  return DEFAULT_INSTRUCTIONS 
 }
 
-const PRONOUN_RE = /\b(he|she|him|her|his|hers|they|them|their|it|this|that|the patient|the same|same patient)\b/i
 
 type LiveKitRoom = {
   name: string
@@ -47,7 +45,6 @@ type LiveKitRoom = {
 
 class RAGAgent extends voice.Agent {
   private agentRoom: LiveKitRoom
-  private recentTurns: string[] = []
   private processingQuery = ''
 
   constructor(room: LiveKitRoom) {
@@ -57,53 +54,41 @@ class RAGAgent extends voice.Agent {
 
   async onUserTurnCompleted(turnCtx: llm.ChatContext, newMessage: llm.ChatMessage): Promise<void> {
     const query = (newMessage.textContent ?? '').trim()
-
-    if (query && query === this.processingQuery) {
-      logger.debug({ query }, 'Duplicate turn completed — skipping')
-      return
-    }
+    if (!query || query === this.processingQuery) return
     this.processingQuery = query
 
     try {
-      if (query) {
-        let searchQuery = query
-        if (PRONOUN_RE.test(query) && this.recentTurns.length > 0) {
-          searchQuery = this.recentTurns.slice(-2).join(' ') + ' ' + query
-          logger.info({ original: query, enriched: searchQuery }, 'RAG query enriched with context')
-        }
-        this.recentTurns.push(query)
-        if (this.recentTurns.length > 4) this.recentTurns.shift()
+      const result = await this.fetchRagContext(query)
+      if (result) {
+        turnCtx.addMessage({
+          role: 'system',
+          content: `Relevant context from uploaded documents:\n\n${result.contextText}`,
+        })
+        logger.info({ contextLength: result.contextText.length, sourceCount: result.sources.length }, 'RAG context injected')
 
-        try {
-          const result = await Promise.race([
-            retrieveContext(searchQuery),
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 1000)),
-          ])
-          if (result) {
-            turnCtx.addMessage({
-              role: 'system',
-              content: `Relevant context from uploaded documents:\n\n${result.contextText}`,
-            })
-            logger.info({ contextLength: result.contextText.length, sourceCount: result.sources.length }, 'RAG context injected')
-
-            this.agentRoom.localParticipant.publishData(
-              new TextEncoder().encode(JSON.stringify({
-                type: 'rag_sources',
-                sources: result.sources.map(s => ({ id: s.chunkId, document: s.sourceDocument, snippet: s.textSnippet })),
-                retrieved: result.chunksRetrieved,
-                total: result.totalChunksInStore,
-              })),
-              { reliable: true }
-            ).catch((err: unknown) => logger.error({ err }, 'Failed to publish RAG sources'))
-          }
-        } catch (err) {
-          logger.error({ err }, 'RAG retrieval failed — continuing without context')
-        }
+        // Send RAG sources to the frontend for display
+        const payload = JSON.stringify({
+          type: 'rag_sources',
+          sources: result.sources.map(s => ({ id: s.chunkId, document: s.sourceDocument, snippet: s.textSnippet })),
+          retrieved: result.chunksRetrieved,
+          total: result.totalChunksInStore,
+        })
+        this.agentRoom.localParticipant
+          .publishData(new TextEncoder().encode(payload), { reliable: true })
+          .catch((err: unknown) => logger.error({ err }, 'Failed to publish RAG sources'))
       }
-
       await super.onUserTurnCompleted(turnCtx, newMessage)
     } finally {
       if (this.processingQuery === query) this.processingQuery = ''
+    }
+  }
+
+  private async fetchRagContext(query: string): Promise<RagResult | null> {
+    try {
+      return await retrieveContext(query)
+    } catch (err) {
+      logger.error({ err }, 'RAG retrieval failed — continuing without context')
+      return null
     }
   }
 }

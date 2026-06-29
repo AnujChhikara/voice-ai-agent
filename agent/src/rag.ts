@@ -15,7 +15,6 @@ const chromaClient = new ChromaClient({
 
 const KNOWLEDGE_BASE_COLLECTION_NAME = 'knowledge_base'
 
-// Cache the collection reference — avoids a getOrCreateCollection round trip on every user turn
 let cachedKnowledgeBaseCollection: Awaited<ReturnType<typeof chromaClient.getOrCreateCollection>> | null = null
 
 export type RagSource = {
