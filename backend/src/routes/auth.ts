@@ -117,6 +117,11 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 })
 
 authRouter.get('/me', (req: Request, res: Response) => {
+  if (process.env.SKIP_AUTH === 'true') {
+    res.json({ sub: 'local-user', email: 'local@dev', name: 'Local Dev', picture: '' })
+    return
+  }
+
   const token = req.cookies?.access_token as string | undefined
   if (!token) {
     res.status(401).json({ detail: 'Not authenticated' })

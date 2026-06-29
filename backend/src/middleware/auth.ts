@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import jwt, { JwtPayload } from 'jsonwebtoken'
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_AUTH === 'true') {
+  if (process.env.SKIP_AUTH === 'true') {
     req.user = { sub: "local-user", email: "local@dev", name: "Local Dev", picture: "", type: "access" }
     next()
     return
