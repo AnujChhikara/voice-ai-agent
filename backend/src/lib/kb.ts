@@ -1,10 +1,7 @@
 import OpenAI from 'openai'
 import { ChromaClient, Collection } from 'chromadb'
-import { createRequire } from 'module'
 import { config } from '../config.js'
-
-const require = createRequire(import.meta.url)
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const openaiClient = new OpenAI({ apiKey: config.openaiApiKey })
 
@@ -59,8 +56,14 @@ export async function ingestDocument(
 ): Promise<{ id: string; filename: string }> {
   let rawText = ''
   if (filename.toLowerCase().endsWith('.pdf')) {
-    const parsedPdf = await pdfParse(fileBuffer)
-    rawText = parsedPdf.text
+    const pdfDoc = await getDocument({ data: new Uint8Array(fileBuffer), useSystemFonts: true, disableFontFace: true }).promise
+    const texts: string[] = []
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i)
+      const content = await page.getTextContent()
+      texts.push(content.items.map((item: any) => item.str).join(' '))
+    }
+    rawText = texts.join('\n')
   } else {
     rawText = fileBuffer.toString('utf-8')
   }
