@@ -284,11 +284,14 @@ function VoiceApp() {
   })
 
   if (window.location.pathname === '/auth/success') return <AuthSuccess />
-  if (window.location.pathname === '/login') return <LoginPage />
   if (isLoading) return (
     <div className="h-screen flex items-center justify-center bg-zinc-950 text-zinc-400 text-sm">Loading…</div>
   )
   if (!isLoggedIn) return <LoginPage />
+  if (window.location.pathname === '/login') {
+    window.location.replace('/')
+    return null
+  }
 
   function statusText() {
     if (!connected) return 'Press mic to start'
