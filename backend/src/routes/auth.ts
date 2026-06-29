@@ -117,7 +117,7 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 })
 
 authRouter.get('/me', (req: Request, res: Response) => {
-  if (process.env.SKIP_AUTH === 'true') {
+  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_AUTH === 'true') {
     res.json({ sub: 'local-user', email: 'local@dev', name: 'Local Dev', picture: '' })
     return
   }
