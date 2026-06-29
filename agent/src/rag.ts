@@ -2,75 +2,91 @@ import 'dotenv/config'
 import OpenAI from 'openai'
 import { ChromaClient } from 'chromadb'
 import { logger } from './lib/logger.js'
+import { computeMaxChunks } from './utils/ragBudget.js'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-const chromaUrl = new URL(process.env.CHROMA_URL || 'http://localhost:8001')
-const chroma = new ChromaClient({
-  ssl: chromaUrl.protocol === 'https:',
-  host: chromaUrl.hostname,
-  port: parseInt(chromaUrl.port) || (chromaUrl.protocol === 'https:' ? 443 : 8001),
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+const chromaServerUrl = new URL(process.env.CHROMA_URL || 'http://localhost:8001')
+const chromaClient = new ChromaClient({
+  ssl: chromaServerUrl.protocol === 'https:',
+  host: chromaServerUrl.hostname,
+  port: parseInt(chromaServerUrl.port) || (chromaServerUrl.protocol === 'https:' ? 443 : 8001),
 })
 
-const COLLECTION_NAME = 'knowledge_base'
+const KNOWLEDGE_BASE_COLLECTION_NAME = 'knowledge_base'
+
+// Cache the collection reference — avoids a getOrCreateCollection round trip on every user turn
+let cachedKnowledgeBaseCollection: Awaited<ReturnType<typeof chromaClient.getOrCreateCollection>> | null = null
 
 export type RagSource = {
-  id: string
-  document: string
-  snippet: string
+  chunkId: string
+  sourceDocument: string
+  textSnippet: string
 }
 
 export type RagResult = {
-  context: string
+  contextText: string
   sources: RagSource[]
-  retrieved: number
-  total: number
+  chunksRetrieved: number
+  totalChunksInStore: number
 }
 
-type ChunkMetadata = {
+type ChromaChunkMetadata = {
   filename?: string
   doc_id?: string
 }
 
-async function getCollection() {
-  return chroma.getOrCreateCollection({ name: COLLECTION_NAME, embeddingFunction: null as never })
+async function getKnowledgeBaseCollection() {
+  if (!cachedKnowledgeBaseCollection) {
+    cachedKnowledgeBaseCollection = await chromaClient.getOrCreateCollection({
+      name: KNOWLEDGE_BASE_COLLECTION_NAME,
+      embeddingFunction: null as never,
+    })
+  }
+  return cachedKnowledgeBaseCollection
 }
 
-export async function retrieveContext(query: string, nResults?: number): Promise<RagResult | null> {
-  const words = query.trim().split(/\s+/).length
-  const n = nResults ?? (words <= 5 ? 2 : words <= 10 ? 3 : 4)
-  try {
-    const collection = await getCollection()
-    const count = await collection.count()
-    if (!count) return null
+export async function retrieveContext(query: string, overrideMaxChunks?: number): Promise<RagResult | null> {
+  const maxChunksToRetrieve = overrideMaxChunks ?? computeMaxChunks(query)
 
-    const embeddingResp = await openai.embeddings.create({
+  try {
+    const knowledgeBaseCollection = await getKnowledgeBaseCollection()
+    const totalChunksInStore = await knowledgeBaseCollection.count()
+    if (!totalChunksInStore) return null
+
+    const queryEmbeddingResponse = await openaiClient.embeddings.create({
       model: 'text-embedding-3-small',
       input: [query],
     })
-    const embedding = embeddingResp.data[0].embedding
+    const queryEmbedding = queryEmbeddingResponse.data[0].embedding
 
-    const results = await collection.query({
-      queryEmbeddings: [embedding],
-      nResults: Math.min(n, count),
+    const searchResults = await knowledgeBaseCollection.query({
+      queryEmbeddings: [queryEmbedding],
+      nResults: Math.min(maxChunksToRetrieve, totalChunksInStore),
       include: ['documents', 'metadatas'],
     })
 
-    const docs = results.documents?.[0] || []
-    const metas = results.metadatas?.[0] || []
-    const ids = results.ids?.[0] || []
+    const retrievedChunks    = searchResults.documents?.[0] || []
+    const retrievedMetadatas = searchResults.metadatas?.[0] || []
+    const retrievedChunkIds  = searchResults.ids?.[0] || []
 
-    if (!docs.length) return null
+    if (!retrievedChunks.length) return null
 
-    const sources: RagSource[] = docs.map((doc, i) => {
-      const meta = metas[i] as ChunkMetadata | null
+    const sources: RagSource[] = retrievedChunks.map((chunkText, index) => {
+      const chunkMetadata = retrievedMetadatas[index] as ChromaChunkMetadata | null
       return {
-        id: ids[i] || String(i),
-        document: meta?.filename || 'Unknown document',
-        snippet: (doc || '').slice(0, 120),
+        chunkId:        retrievedChunkIds[index] || String(index),
+        sourceDocument: chunkMetadata?.filename || 'Unknown document',
+        textSnippet:    (chunkText || '').slice(0, 120),
       }
     })
 
-    return { context: docs.join('\n\n'), sources, retrieved: docs.length, total: count }
+    return {
+      contextText:        retrievedChunks.join('\n\n'),
+      sources,
+      chunksRetrieved:    retrievedChunks.length,
+      totalChunksInStore,
+    }
 
   } catch (err) {
     logger.error({ err }, 'RAG retrieveContext error')

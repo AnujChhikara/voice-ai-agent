@@ -81,16 +81,16 @@ class RAGAgent extends voice.Agent {
           if (result) {
             turnCtx.addMessage({
               role: 'system',
-              content: `Relevant context from uploaded documents:\n\n${result.context}`,
+              content: `Relevant context from uploaded documents:\n\n${result.contextText}`,
             })
-            logger.info({ contextLength: result.context.length, sourceCount: result.sources.length }, 'RAG context injected')
+            logger.info({ contextLength: result.contextText.length, sourceCount: result.sources.length }, 'RAG context injected')
 
             this.agentRoom.localParticipant.publishData(
               new TextEncoder().encode(JSON.stringify({
                 type: 'rag_sources',
-                sources: result.sources,
-                retrieved: result.retrieved,
-                total: result.total,
+                sources: result.sources.map(s => ({ id: s.chunkId, document: s.sourceDocument, snippet: s.textSnippet })),
+                retrieved: result.chunksRetrieved,
+                total: result.totalChunksInStore,
               })),
               { reliable: true }
             ).catch((err: unknown) => logger.error({ err }, 'Failed to publish RAG sources'))
