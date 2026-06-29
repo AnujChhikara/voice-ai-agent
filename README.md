@@ -106,7 +106,7 @@ An end-to-end real-time voice agent built on LiveKit WebRTC. Users speak to an A
 
 ## Setup
 
-> **Quick local testing (no Google OAuth needed):** Set `SKIP_AUTH=true` in `backend/.env` to bypass login entirely. The app will work without setting up Google OAuth credentials.
+> **Quick local testing (no Google OAuth needed):** Set `SKIP_AUTH=true` in `backend/.env` (already defaulted to `true` in `backend/.env.example`) to bypass login entirely — no Google OAuth credentials required.
 
 ### Prerequisites
 
