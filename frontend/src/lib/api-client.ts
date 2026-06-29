@@ -8,7 +8,6 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    // Don't set Content-Type for FormData — browser sets it with the correct multipart boundary
     if (!(config.data instanceof FormData)) {
       config.headers.set('Content-Type', 'application/json')
     }
