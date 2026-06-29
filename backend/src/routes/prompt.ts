@@ -11,6 +11,8 @@ const PROMPT_FILE = join(__dir, '../../prompt.txt')
 const DEFAULT_PROMPT =
   'You are a helpful voice assistant. Answer questions using the provided context from documents. Be concise since your responses will be spoken aloud.'
 
+
+// TODO: Eventually need to move storing this prompt to a database
 function readPrompt(): string {
   if (existsSync(PROMPT_FILE)) return readFileSync(PROMPT_FILE, 'utf-8')
   return DEFAULT_PROMPT

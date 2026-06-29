@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Room, RoomEvent, Track } from 'livekit-client'
-import type { RemoteTrack, RemoteTrackPublication, RemoteParticipant, TranscriptionSegment } from 'livekit-client'
-import { TokenApi } from '@/api/token/token.api'
+import type { RemoteTrack, TranscriptionSegment } from 'livekit-client'
+import { UserApi } from '@/api/user/user.api'
 
 export type TranscriptLine = { role: 'user' | 'agent'; text: string }
 
@@ -24,13 +24,6 @@ export type CallSession = {
   transcript: TranscriptLine[]
 }
 
-type DataMessage = {
-  type: string
-  sources?: RagSource[]
-  retrieved?: number
-  total?: number
-}
-
 export function getSessions(): CallSession[] {
   try {
     return JSON.parse(sessionStorage.getItem('voiceai_sessions') || '[]')
@@ -49,21 +42,13 @@ export function useAgent() {
   const [agentSpeaking, setAgentSpeaking] = useState(false)
   const [agentThinking, setAgentThinking] = useState(false)
   const [ragMeta, setRagMeta] = useState<RagMeta | null>(null)
-  const [currentAgentText, setCurrentAgentText] = useState<string>('')
 
   const audioElementsRef = useRef<HTMLAudioElement[]>([])
-  const sessionIdRef = useRef<string>('')
-  const sessionStartRef = useRef<number>(0)
+  const sessionRef = useRef({ id: '', startedAt: 0 })
   const transcriptRef = useRef<TranscriptLine[]>([])
 
-  useEffect(() => { transcriptRef.current = transcript }, [transcript])
-
   useEffect(() => {
-    if (agentSpeaking) setAgentThinking(false)
-  }, [agentSpeaking])
-
-  useEffect(() => {
-    function attachAudio(track: RemoteTrack, _pub: RemoteTrackPublication, _participant: RemoteParticipant) {
+    function attachAudio(track: RemoteTrack) {
       if (track.kind !== Track.Kind.Audio) return
       const el = track.attach() as HTMLAudioElement
       el.autoplay = true
@@ -74,23 +59,14 @@ export function useAgent() {
     function onTranscription(segments: TranscriptionSegment[], participant: unknown) {
       const p = participant as { isLocal?: boolean } | null
       const isAgent = p != null && p.isLocal === false
-      const isUser = p != null && p.isLocal === true
+      const isUser  = p != null && p.isLocal === true
       segments.forEach(seg => {
-        if (isAgent && !seg.final && seg.text.trim()) {
-          setCurrentAgentText(seg.text)
-        }
-        if (seg.final && seg.text.trim()) {
-          setTranscript(prev => [...prev, { role: isAgent ? 'agent' : 'user', text: seg.text }])
-          if (isAgent) {
-            setAgentThinking(false)
-            setCurrentAgentText('')
-          }
-          if (isUser) {
-            setAgentThinking(true)
-            setRagMeta(null)
-            setCurrentAgentText('')
-          }
-        }
+        if (!seg.final || !seg.text.trim()) return
+        const line: TranscriptLine = { role: isAgent ? 'agent' : 'user', text: seg.text }
+        transcriptRef.current = [...transcriptRef.current, line]
+        setTranscript(transcriptRef.current)
+        if (isAgent) setAgentThinking(false)
+        if (isUser)  { setAgentThinking(true); setRagMeta(null) }
       })
     }
 
@@ -101,7 +77,7 @@ export function useAgent() {
 
     function onDataReceived(data: Uint8Array) {
       try {
-        const msg = JSON.parse(new TextDecoder().decode(data)) as DataMessage
+        const msg = JSON.parse(new TextDecoder().decode(data)) as { type: string; sources?: RagSource[]; retrieved?: number; total?: number }
         if (msg.type === 'rag_sources' && msg.sources) {
           setRagMeta({ sources: msg.sources, retrieved: msg.retrieved ?? msg.sources.length, total: msg.total ?? msg.sources.length })
         }
@@ -124,13 +100,11 @@ export function useAgent() {
   const connect = useCallback(async () => {
     setError('')
     try {
-      const roomName = `room-${crypto.randomUUID().slice(0, 8)}`
-      const { token, url } = await TokenApi.get.fn(roomName)
+      const { token, url } = await UserApi.token.fn()
       await room.connect(url, token)
       await room.startAudio()
       await room.localParticipant.setMicrophoneEnabled(true)
-      sessionIdRef.current = crypto.randomUUID()
-      sessionStartRef.current = Date.now()
+      sessionRef.current = { id: crypto.randomUUID(), startedAt: Date.now() }
       setConnected(true)
     } catch (e) {
       console.error('LiveKit connect error:', e)
@@ -141,8 +115,8 @@ export function useAgent() {
   const disconnect = useCallback(async () => {
     if (transcriptRef.current.length > 0) {
       const session: CallSession = {
-        id: sessionIdRef.current,
-        startedAt: sessionStartRef.current,
+        id: sessionRef.current.id,
+        startedAt: sessionRef.current.startedAt,
         endedAt: Date.now(),
         transcript: transcriptRef.current,
       }
@@ -153,11 +127,11 @@ export function useAgent() {
 
     audioElementsRef.current.forEach(el => { el.pause(); el.remove() })
     audioElementsRef.current = []
+    transcriptRef.current = []
     await room.disconnect()
     setConnected(false)
     setTranscript([])
     setRagMeta(null)
-    setCurrentAgentText('')
     setUserSpeaking(false)
     setAgentSpeaking(false)
     setAgentThinking(false)
@@ -169,5 +143,5 @@ export function useAgent() {
     setMuted(next)
   }, [room, muted])
 
-  return { connected, muted, transcript, error, connect, disconnect, toggleMute, userSpeaking, agentSpeaking, agentThinking, ragMeta, currentAgentText }
+  return { connected, muted, transcript, error, connect, disconnect, toggleMute, userSpeaking, agentSpeaking, agentThinking, ragMeta }
 }

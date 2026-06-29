@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { ParticleSphere } from '@/components/ParticleSphere'
 import { RagSourcesPanel } from '@/components/RagSourcesPanel'
 import { InputBar } from '@/components/InputBar'
-import { SettingsPanel } from '@/modules/settings/SettingsPanel'
+import { SettingsPanel } from './SettingsPanel'
 import type { TranscriptLine, RagMeta } from '@/hooks/useAgent'
 
 type ConnectedViewProps = {

@@ -6,19 +6,16 @@ export const tokenRouter = Router()
 
 tokenRouter.post('/', async (req: Request, res: Response) => {
   try {
-    const { room } = req.body as { room?: unknown }
-    if (!room || typeof room !== 'string') {
-      res.status(400).json({ detail: 'room required' })
-      return
-    }
+    // currently user can join only one room
+    const roomName = `room-${req.user.sub}`
 
-    const at = new AccessToken(config.livekitApiKey, config.livekitApiSecret, {
+    const accessToken = new AccessToken(config.livekitApiKey, config.livekitApiSecret, {
       identity: req.user.sub,
       name: req.user.name,
     })
-    at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true })
+    accessToken.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true })
 
-    res.json({ token: await at.toJwt(), url: config.livekitUrl })
+    res.json({ token: await accessToken.toJwt(), url: config.livekitUrl, room: roomName })
   } catch (err) {
     res.status(500).json({ detail: (err as Error).message })
   }

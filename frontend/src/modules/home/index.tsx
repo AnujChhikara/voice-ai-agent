@@ -6,15 +6,15 @@ import { useAuth } from '@/hooks/useAuth'
 import { useAgent } from '@/hooks/useAgent'
 import { DocumentsApi } from '@/api/documents/documents.api'
 import { LoginPage } from '@/modules/login'
-import { LandingView } from '@/modules/voice/LandingView'
-import { ConnectedView } from '@/modules/voice/ConnectedView'
-import { SettingsPanel } from '@/modules/settings/SettingsPanel'
-import { HistoryPanel } from '@/modules/history/HistoryPanel'
+import { LandingView } from './LandingView'
+import { ConnectedView } from './ConnectedView'
+import { SettingsPanel } from './SettingsPanel'
+import { HistoryPanel } from './HistoryPanel'
 import { Route } from '@/routes/index'
 
 type RouteSearch = { panel?: 'settings' | 'history'; view?: 'voice' | 'transcript' }
 
-export function VoiceApp() {
+export function Home() {
   const { isLoading, isLoggedIn, logoutMutation } = useAuth()
   const { connected, muted, transcript, error, connect, disconnect, toggleMute, userSpeaking, agentSpeaking, agentThinking, ragMeta } = useAgent()
 

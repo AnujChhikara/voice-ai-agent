@@ -78,12 +78,16 @@ export async function ingestDocument(
   })
   const chunkEmbeddings = embeddingResponse.data.map(e => e.embedding)
 
-  await knowledgeBaseCollection.add({
-    ids:       textChunks.map((_, i) => `${documentId}-chunk-${i}`),
-    embeddings: chunkEmbeddings,
-    documents:  textChunks,
-    metadatas:  textChunks.map((): DocumentChunkMetadata => ({ doc_id: documentId, filename })),
-  })
+  try {
+    await knowledgeBaseCollection.add({
+      ids:        textChunks.map((_, i) => `${documentId}-chunk-${i}`),
+      embeddings: chunkEmbeddings,
+      documents:  textChunks,
+      metadatas:  textChunks.map((): DocumentChunkMetadata => ({ doc_id: documentId, filename })),
+    })
+  } catch (err) {
+    throw new Error(`Failed to store document in knowledge base: ${(err as Error).message}`)
+  }
 
   return { id: documentId, filename }
 }

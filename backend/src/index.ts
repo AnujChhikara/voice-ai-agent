@@ -27,10 +27,8 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: 'lax', secure: config.isProd },
 }))
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'voice-ai-backend' }))
-
 app.use('/api/auth', authRouter)
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'voice-ai-backend' }))
 
 app.use('/api/documents', requireAuth, documentsRouter)
 app.use('/api/prompt', requireAuth, promptRouter)
