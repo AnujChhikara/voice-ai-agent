@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { AccessToken } from 'livekit-server-sdk'
+import { config } from '../config.js'
 
 export const tokenRouter = Router()
 
@@ -11,16 +12,13 @@ tokenRouter.post('/', async (req: Request, res: Response) => {
       return
     }
 
-    const identity = req.user.sub
-    const at = new AccessToken(
-      process.env.LIVEKIT_API_KEY,
-      process.env.LIVEKIT_API_SECRET,
-      { identity, name: req.user.name }
-    )
+    const at = new AccessToken(config.livekitApiKey, config.livekitApiSecret, {
+      identity: req.user.sub,
+      name: req.user.name,
+    })
     at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true })
 
-    const token = await at.toJwt()
-    res.json({ token, url: process.env.LIVEKIT_URL })
+    res.json({ token: await at.toJwt(), url: config.livekitUrl })
   } catch (err) {
     res.status(500).json({ detail: (err as Error).message })
   }

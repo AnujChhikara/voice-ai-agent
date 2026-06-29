@@ -4,13 +4,14 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { stringify } from 'querystring'
 import { logger } from '../lib/logger.js'
+import { config } from '../config.js'
 
 export const authRouter = Router()
 
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
-  secure: process.env.NODE_ENV === 'production',
+  secure: config.isProd,
 }
 
 type UserData = {
@@ -21,19 +22,11 @@ type UserData = {
 }
 
 function createAccessToken(userInfo: UserData): string {
-  return jwt.sign(
-    { ...userInfo, type: 'access' },
-    process.env.JWT_SECRET || 'dev-secret',
-    { expiresIn: '2h' }
-  )
+  return jwt.sign({ ...userInfo, type: 'access' }, config.jwtSecret, { expiresIn: '2h' })
 }
 
 function createRefreshToken(userInfo: UserData): string {
-  return jwt.sign(
-    { ...userInfo, type: 'refresh' },
-    process.env.JWT_SECRET || 'dev-secret',
-    { expiresIn: '7d' }
-  )
+  return jwt.sign({ ...userInfo, type: 'refresh' }, config.jwtSecret, { expiresIn: '7d' })
 }
 
 authRouter.get('/google/login', (req: Request, res: Response) => {
@@ -41,8 +34,8 @@ authRouter.get('/google/login', (req: Request, res: Response) => {
   req.session.oauth_state = state
 
   const params = stringify({
-    client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: `${process.env.BACKEND_URL || 'http://localhost:8000'}/api/auth/google/callback`,
+    client_id: config.googleClientId,
+    redirect_uri: `${config.backendUrl}/api/auth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
     access_type: 'offline',
@@ -54,32 +47,31 @@ authRouter.get('/google/login', (req: Request, res: Response) => {
 })
 
 authRouter.get('/google/callback', async (req: Request, res: Response) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
   const { code, state, error } = req.query
 
   if (error || !code) {
-    res.redirect(`${frontendUrl}/login?error=${error || 'no_code'}`)
+    res.redirect(`${config.frontendUrl}/login?error=${error || 'no_code'}`)
     return
   }
 
   const storedState = req.session.oauth_state
   if (!storedState || storedState !== state) {
-    res.redirect(`${frontendUrl}/login?error=invalid_state`)
+    res.redirect(`${config.frontendUrl}/login?error=invalid_state`)
     return
   }
 
   try {
     const tokenResp = await axios.post('https://oauth2.googleapis.com/token', stringify({
       code: code as string,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${process.env.BACKEND_URL || 'http://localhost:8000'}/api/auth/google/callback`,
+      client_id: config.googleClientId,
+      client_secret: config.googleClientSecret,
+      redirect_uri: `${config.backendUrl}/api/auth/google/callback`,
       grant_type: 'authorization_code',
     }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
 
     const googleTokens = tokenResp.data as { error?: string; access_token: string }
     if (googleTokens.error) {
-      res.redirect(`${frontendUrl}/login?error=token_exchange_failed`)
+      res.redirect(`${config.frontendUrl}/login?error=token_exchange_failed`)
       return
     }
 
@@ -95,17 +87,14 @@ authRouter.get('/google/callback', async (req: Request, res: Response) => {
       name: userInfo.name,
       picture: userInfo.picture,
     }
-    const accessToken = createAccessToken(userData)
-    const refreshToken = createRefreshToken(userData)
 
     delete req.session.oauth_state
-
-    res.cookie('access_token', accessToken, { ...COOKIE_OPTS, maxAge: 2 * 60 * 60 * 1000 })
-    res.cookie('refresh_token', refreshToken, { ...COOKIE_OPTS, maxAge: 7 * 24 * 60 * 60 * 1000 })
-    res.redirect(`${frontendUrl}/auth/success?success=true`)
+    res.cookie('access_token', createAccessToken(userData), { ...COOKIE_OPTS, maxAge: 2 * 60 * 60 * 1000 })
+    res.cookie('refresh_token', createRefreshToken(userData), { ...COOKIE_OPTS, maxAge: 7 * 24 * 60 * 60 * 1000 })
+    res.redirect(`${config.frontendUrl}/auth/success?success=true`)
   } catch (err) {
     logger.error({ err }, 'OAuth callback error')
-    res.redirect(`${frontendUrl}/login?error=auth_failed`)
+    res.redirect(`${config.frontendUrl}/login?error=auth_failed`)
   }
 })
 
@@ -117,7 +106,7 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 })
 
 authRouter.get('/me', (req: Request, res: Response) => {
-  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_AUTH === 'true') {
+  if (config.skipAuth) {
     res.json({ sub: 'local-user', email: 'local@dev', name: 'Local Dev', picture: '' })
     return
   }
@@ -128,7 +117,7 @@ authRouter.get('/me', (req: Request, res: Response) => {
     return
   }
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as {
+    const payload = jwt.verify(token, config.jwtSecret) as {
       sub: string; email: string; name: string; picture: string
     }
     const { sub, email, name, picture } = payload

@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt, { JwtPayload } from 'jsonwebtoken'
+import { config } from '../config.js'
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (process.env.NODE_ENV !== 'production' && process.env.SKIP_AUTH === 'true') {
+  if (config.skipAuth) {
     req.user = { sub: "local-user", email: "local@dev", name: "Local Dev", picture: "", type: "access" }
     next()
     return
@@ -14,7 +15,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return
   }
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as JwtPayload & {
+    const payload = jwt.verify(token, config.jwtSecret) as JwtPayload & {
       type: string; sub: string; email: string; name: string; picture: string
     }
     if (payload.type !== 'access') {

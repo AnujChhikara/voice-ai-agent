@@ -1,13 +1,14 @@
 import OpenAI from 'openai'
 import { ChromaClient, Collection } from 'chromadb'
 import { createRequire } from 'module'
+import { config } from '../config.js'
 
 const require = createRequire(import.meta.url)
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
 
-const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const openaiClient = new OpenAI({ apiKey: config.openaiApiKey })
 
-const chromaServerUrl = new URL(process.env.CHROMA_URL || 'http://localhost:8001')
+const chromaServerUrl = new URL(config.chromaUrl)
 const chromaClient = new ChromaClient({
   ssl: chromaServerUrl.protocol === 'https:',
   host: chromaServerUrl.hostname,
